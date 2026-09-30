@@ -151,6 +151,52 @@ class GmailService:
             userId="me", id=message_id
         ).execute()
 
+    # ------------------------------------------------------------------ attachments
+
+    def list_attachments(self, message_id: str) -> List[Dict[str, Any]]:
+        """List all attachments in a message (filename, mimeType, size, attachmentId)."""
+        msg = self._get_raw_message(message_id, format="full")
+        return self._collect_attachments(msg.get("payload", {}))
+
+    def _collect_attachments(self, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        if not payload:
+            return out
+        filename = payload.get("filename") or ""
+        body = payload.get("body", {})
+        att_id = body.get("attachmentId")
+        if filename and att_id:
+            out.append({
+                "attachmentId": att_id,
+                "filename": filename,
+                "mimeType": payload.get("mimeType", ""),
+                "size": body.get("size", 0),
+                "partId": payload.get("partId", ""),
+            })
+        for part in payload.get("parts", []) or []:
+            out.extend(self._collect_attachments(part))
+        return out
+
+    def save_attachment(
+        self,
+        message_id: str,
+        attachment_id: str,
+        save_to_path: str,
+    ) -> Dict[str, Any]:
+        """Download an attachment and save to disk. Returns {path, size}."""
+        import os
+        att = self.service.users().messages().attachments().get(
+            userId="me", messageId=message_id, id=attachment_id
+        ).execute()
+        data_b64 = att.get("data", "")
+        if not data_b64:
+            raise ValueError("Attachment data is empty")
+        raw = base64.urlsafe_b64decode(data_b64.encode())
+        os.makedirs(os.path.dirname(save_to_path) or ".", exist_ok=True)
+        with open(save_to_path, "wb") as f:
+            f.write(raw)
+        return {"path": save_to_path, "size": len(raw)}
+
     # ------------------------------------------------------------------ internals
 
     def _get_raw_message(self, message_id: str, format: str = "full") -> Dict[str, Any]:

@@ -155,6 +155,50 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="gmail_list_attachments",
+            description="List all attachments in a Gmail message. Returns array of {attachmentId, filename, mimeType, size}.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "account": {
+                        "type": "string",
+                        "description": "Account that owns the message",
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "Gmail message ID (from search results)",
+                    },
+                },
+                "required": ["account", "message_id"],
+            },
+        ),
+        types.Tool(
+            name="gmail_save_attachment",
+            description="Download a Gmail attachment and save it to disk. Returns {path, size}.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "account": {
+                        "type": "string",
+                        "description": "Account that owns the message",
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "Gmail message ID",
+                    },
+                    "attachment_id": {
+                        "type": "string",
+                        "description": "Attachment ID (from gmail_list_attachments)",
+                    },
+                    "save_to_path": {
+                        "type": "string",
+                        "description": "Absolute file path to save the attachment to (parent dir created if missing)",
+                    },
+                },
+                "required": ["account", "message_id", "attachment_id", "save_to_path"],
+            },
+        ),
+        types.Tool(
             name="gmail_read_thread",
             description="Read all messages in a Gmail thread/conversation.",
             inputSchema={
@@ -432,6 +476,21 @@ async def call_tool(name: str, arguments: dict | None) -> list[types.TextContent
         elif name == "gmail_read_message":
             svc = _get_service(args["account"])
             return _fmt(svc.get_message(args["message_id"]))
+
+        # ---- gmail_list_attachments ---------------------------------------
+        elif name == "gmail_list_attachments":
+            svc = _get_service(args["account"])
+            return _fmt(svc.list_attachments(args["message_id"]))
+
+        # ---- gmail_save_attachment ----------------------------------------
+        elif name == "gmail_save_attachment":
+            svc = _get_service(args["account"])
+            result = svc.save_attachment(
+                message_id=args["message_id"],
+                attachment_id=args["attachment_id"],
+                save_to_path=args["save_to_path"],
+            )
+            return _fmt(result)
 
         # ---- gmail_read_thread --------------------------------------------
         elif name == "gmail_read_thread":
